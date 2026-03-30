@@ -22,6 +22,23 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Demo
+
+<a href="/course_images/ai110/demo.png" target="_blank"><img src='/course_images/ai110/demo.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+## Features
+
+- **Sorting by time** — `Scheduler.organize_by_time` sorts pending tasks in ascending `start_time` order so the schedule reads chronologically from morning to night.
+- **Sorting by priority** — `Scheduler.organize_by_priority` sorts by priority value (1 = high first), with `start_time` as a tiebreaker when two tasks share the same priority.
+- **User-selectable sort order** — the owner's `preferences["sort_by"]` setting drives `generate_schedule`, which dispatches to either sort automatically. The preference is set from a dropdown in the UI.
+- **Conflict warnings** — `Scheduler.detect_conflicts` checks every pair of pending tasks across all pets using an interval-overlap test (`a.start < b.end and b.start < a.end`). Any overlapping pair produces a warning displayed via `st.warning` in the app.
+- **Daily recurrence** — marking a `frequency="daily"` task complete via `Scheduler.mark_complete` automatically adds a new copy of that task due the following day, preserving the original description, times, and priority.
+- **Weekly recurrence** — same as daily recurrence but the next task is scheduled 7 days out.
+- **One-off tasks** — tasks with `frequency="as needed"` are marked complete and removed from the schedule without creating a follow-up.
+- **Multi-pet support** — an `Owner` holds multiple `Pet` objects; `get_all_tasks` flattens tasks across all pets and the scheduler operates over the full owner-level task list.
+- **Live schedule with checkboxes** — the Streamlit UI renders each pending task as a checkbox row; ticking a box calls `mark_complete`, refreshes the schedule, and shows updated metrics without a manual page reload.
+- **Summary metrics** — the schedule view shows live counts of total, pending, and completed tasks via `st.metric`.
+
 ## Getting started
 
 ### Setup

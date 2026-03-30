@@ -244,6 +244,51 @@ classDiagram
     Scheduler ..> Owner : reads from
 ```
 
+### Final Design (Matches Implementation)
+
+```mermaid
+classDiagram
+    class Task {
+        +description: str
+        +start_time: str
+        +end_time: str
+        +frequency: str
+        +priority: int
+        +is_complete: bool
+        +due_date: str
+    }
+
+    class Pet {
+        +name: str
+        +species: str
+        +tasks: list[Task]
+        +add_task(task: Task)
+        +remove_task(description: str)
+    }
+
+    class Owner {
+        +name: str
+        +pets: list[Pet]
+        +preferences: dict
+        +add_pet(pet: Pet)
+        +get_all_tasks() list[Task]
+    }
+
+    class Scheduler {
+        +get_pending_tasks(owner: Owner) list[tuple[Pet, Task]]
+        +organize_by_time(tasks: list[tuple[Pet, Task]]) list[tuple[Pet, Task]]
+        +organize_by_priority(tasks: list[tuple[Pet, Task]]) list[tuple[Pet, Task]]
+        +mark_complete(task: Task, pet: Pet)
+        +detect_conflicts(owner: Owner) list[str]
+        +generate_schedule(owner: Owner) list[tuple[Pet, Task]]
+    }
+
+    Owner "1" --> "many" Pet : owns
+    Pet "1" --> "many" Task : has
+    Scheduler ..> Owner : reads from
+    Scheduler ..> Pet : adds recurring task to
+```
+
 **Final design choices:**
 
 - **Task** is a plain data container — no logic, just the facts about one activity (what it is, how long, how often, done or not).
@@ -286,19 +331,19 @@ The conflict detection implementation is currently a quadratic algorithm rather 
 
 ---
 
+I used AI (Claude) in all phases of this project, but mainly for refactoring and design brainstorming. I found that it was very helpful for refining my mermaid diagrams to be more modular. The prompts that were most helpful were one-shot and few-shot prompts (basically any instances where I provided an example alongside my prompt). I also used AI to correctly format my README.
+
+One suggestion Claude offered that I did not accept was a UML diagram that initially contained six classes and included separate classes for regular and scheduled tasks. After realizing that the rest of the project hinged on having only four classes and identifying redundancies in the current layout, I asked Claude to revise my diagram to only contain four classes.
+
 ## 4. Testing and Verification
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
-
-
+The suite covers 31 tests across six areas: task defaults, pet management, owner aggregation, sorting correctness, recurrence logic, and conflict detection. These were the most important behaviors to test because they represent the core scheduling guarantees. If sorting, recurrence, or conflict detection are broken, the app produces incorrect or misleading output for the user.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+★★★★☆ (4/5). The scheduling logic layer is fully tested and all 31 tests pass. Confidence is high for sorting, recurrence, and conflict detection. The main gap is the Streamlit UI (`app.py`), which has no automated tests. Edge cases like rapid checkbox clicks or duplicate key collisions can only be caught through manual testing.
 
 ---
 
@@ -308,10 +353,16 @@ The conflict detection implementation is currently a quadratic algorithm rather 
 
 - What part of this project are you most satisfied with?
 
+I am pleased with how well documented this project is, and it taught me a lot about iterative software development and comprehensive unit testing. The reasons behind the design choices here are explained in detail and easy to understand.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+I would work on making the scheduling logic smarter by introducing other sorting criteria besides priority and start time. Sorting by end time or by pet (for example, if some pets need more continuous care than others) may be interesting.
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+I learned that even with AI, software development is an iterative process. All code written by AI must be evaluated and verified with corresponding unit tests to ensure it behaves as intended. AI is much more like a pair programmer than a tool for dramatically speeding up the engineering process.
