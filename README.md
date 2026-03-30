@@ -24,7 +24,7 @@ Your final app should:
 
 ## Demo
 
-<a href="/course_images/ai110/demo.png" target="_blank"><img src='/course_images/ai110/demo.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+<a href="https://raw.githubusercontent.com/aliiyuu/ai110-module2show-pawpal-starter/main/demo.png" target="_blank"><img src='https://raw.githubusercontent.com/aliiyuu/ai110-module2show-pawpal-starter/main/demo.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
 
 ## Features
 
