@@ -103,6 +103,157 @@ classDiagram
     ScheduledTask --> Task : schedules
 ```
 
+To reduce implementation risk before coding, I made a few optimization-oriented refinements for readability, consistency, and scheduler stability:
+
+- **Data consistency:** Replace free-form strings (like priority and time window) with controlled values (enum-like constants) to prevent invalid inputs.
+- **Scheduling reliability:** Add deterministic tie-breakers when two tasks score equally, so schedules are reproducible and easier to test.
+- **Constraint clarity:** Mark tasks as required vs optional so must-do care (for example meds/feeding) is protected when time is limited.
+- **Separation of concerns:** Keep scheduler orchestration separate from score-factor tracking so explanations do not recompute logic.
+- **Time representation:** Use minutes-from-midnight internally and format to readable clock strings only for display.
+
+```mermaid
+classDiagram
+    class Owner {
+        +name: str
+        +available_minutes_per_day: int
+        +preferences: list[str]
+        +concerns: list[str]
+        +pets: list[Pet]
+        +add_pet(pet: Pet)
+        +add_preference(pref: str)
+    }
+
+    class Pet {
+        +name: str
+        +species: str
+        +tasks: list[Task]
+        +add_task(task: Task)
+        +remove_task(task_title: str)
+    }
+
+    class Task {
+        +title: str
+        +duration_minutes: int
+        +priority: Priority
+        +category: str
+        +preferred_window: TimeWindow
+        +is_required: bool
+        +notes: str
+    }
+
+    class SchedulingContext {
+        +date: str
+        +start_minute: int
+        +end_minute: int
+        +minutes_available: int
+    }
+
+    class ScoredTask {
+        +task: Task
+        +pet_name: str
+        +score: float
+        +score_factors: list[str]
+    }
+
+    class Scheduler {
+        +generate_daily_plan(owner: Owner, ctx: SchedulingContext) DailyPlan
+        +score_task(task: Task, owner: Owner) ScoredTask
+        +fits_constraints(task: Task, minutes_left: int) bool
+        +build_reason(scored_task: ScoredTask) str
+    }
+
+    class ScheduledTask {
+        +task: Task
+        +pet_name: str
+        +start_minute: int
+        +end_minute: int
+        +reason: str
+    }
+
+    class DailyPlan {
+        +owner_name: str
+        +date: str
+        +items: list[ScheduledTask]
+        +minutes_used: int
+        +minutes_available: int
+        +summary: str
+        +explanation: str
+        +add_item(item: ScheduledTask)
+    }
+
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
+    class TimeWindow {
+        <<enumeration>>
+        ANY
+        MORNING
+        AFTERNOON
+        EVENING
+    }
+
+    Owner "1" --> "many" Pet : has
+    Pet "1" --> "many" Task : needs
+    Scheduler ..> Owner : reads constraints
+    Scheduler ..> SchedulingContext : reads time limits
+    Scheduler ..> ScoredTask : computes
+    Scheduler ..> DailyPlan : builds
+    DailyPlan "1" --> "many" ScheduledTask : contains
+    ScheduledTask --> Task : schedules
+    Task --> Priority : uses
+    Task --> TimeWindow : uses
+```
+
+### Simplified Design (4-Class Version)
+
+```mermaid
+classDiagram
+    class Task {
+        +description: str
+        +time_minutes: int
+        +frequency: str
+        +is_complete: bool
+    }
+
+    class Pet {
+        +name: str
+        +species: str
+        +tasks: list[Task]
+        +add_task(task: Task)
+        +remove_task(description: str)
+    }
+
+    class Owner {
+        +name: str
+        +pets: list[Pet]
+        +add_pet(pet: Pet)
+        +get_all_tasks() list[Task]
+    }
+
+    class Scheduler {
+        +get_pending_tasks(owner: Owner) list[Task]
+        +organize_by_time(tasks: list[Task]) list[Task]
+        +mark_complete(task: Task)
+        +generate_schedule(owner: Owner) list[Task]
+    }
+
+    Owner "1" --> "many" Pet : owns
+    Pet "1" --> "many" Task : has
+    Scheduler ..> Owner : reads from
+```
+
+**Final design choices:**
+
+- **Task** is a plain data container — no logic, just the facts about one activity (what it is, how long, how often, done or not).
+- **Pet** owns its tasks directly. This keeps pet-specific data together and makes it easy to add or remove tasks per pet.
+- **Owner** is the single entry point for the rest of the system. `get_all_tasks()` flattens tasks across all pets so the Scheduler doesn't need to know about the Owner → Pet → Task chain itself.
+- **Scheduler** is the only class with real logic. It depends on Owner (via a dashed arrow) but doesn't store any state — it just reads, organizes, and returns. This keeps it easy to swap out or test independently.
+- The original 6-class design added `SchedulingContext`, `ScoredTask`, `ScheduledTask`, `DailyPlan`, and two enums. Those are useful if you need time-window scoring or a printable daily plan, but for a minimal working scheduler they're unnecessary complexity.
+
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
