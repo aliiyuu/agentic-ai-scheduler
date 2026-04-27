@@ -170,7 +170,7 @@ PASSED
 ## Design Decisions
 
 **Agentic workflow over RAG**
-RAG requires a knowledge base and suits Q&A use cases. PawPal+'s core problem is scheduling under constraints, which is a reasoning and action problem. An agent that wraps the existing `pawpal_system.py` functions as tools is a more direct fit, and it means the AI layer extends the original system without replacing or duplicating it. 
+RAG requires a knowledge base and suits Q&A use cases. PawPal+'s core problem is scheduling under constraints, which is a reasoning and action problem. An agent that wraps the existing `pawpal_system.py` functions as tools is a more direct fit, and it means the AI layer extends the original system without replacing or duplicating it. I also decided to make this a very heavily UI-focused app as the original PawPal+ already was very UI-driven and dependent on individual user interaction.
 
 **Four classes kept from original design**
 The original Module 2 reflection documents a deliberate simplification from a six-class design (which included `SchedulingContext`, `ScoredTask`, `ScheduledTask`, `DailyPlan`, and two enums) down to four (`Task`, `Pet`, `Owner`, `Scheduler`). Those extra classes are useful for time-window scoring and printable daily plans, but added unnecessary complexity for a minimal working scheduler. The agentic layer builds on the four-class design without re-introducing that complexity.

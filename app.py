@@ -242,5 +242,5 @@ if prompt := st.chat_input("Ask PawPal+ anything..."):
     agent_tool_names = {c["name"] for c in tool_calls if c.get("type") == "tool"}
     if "generate_schedule" in agent_tool_names:
         st.session_state.schedule = st.session_state.scheduler.generate_schedule(st.session_state.owner)
-    if agent_tool_names & MODIFYING_TOOLS:
+    if agent_tool_names & MODIFYING_TOOLS or "generate_schedule" in agent_tool_names:
         st.rerun()
