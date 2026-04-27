@@ -14,6 +14,8 @@ pytestmark = pytest.mark.skipif(
 )
 
 CONSISTENCY_RUNS = 3  # number of times to repeat each consistency check
+CONFIDENCE_RUNS = 5   # number of runs for confidence scoring
+CONFIDENCE_THRESHOLD = 0.8  # minimum acceptable score (4/5 runs)
 
 
 # ---------------------------------------------------------------------------
@@ -239,3 +241,108 @@ def test_consistency_state_updated_after_add():
         )
         assert len(pet.tasks) == 1, \
             f"Expected 1 task after add, got {len(pet.tasks)}"
+
+
+# ---------------------------------------------------------------------------
+# Confidence scoring
+# Runs each eval CONFIDENCE_RUNS times and reports a 0.0–1.0 score.
+# Fails if score drops below CONFIDENCE_THRESHOLD.
+# Use -s flag to see printed scores: python -m pytest tests/test_agent_evals.py -v -s
+# ---------------------------------------------------------------------------
+
+def score_eval(prompt, owner_factory, check_fn, n=CONFIDENCE_RUNS):
+    """
+    Run an eval n times and return a confidence score (0.0–1.0).
+    check_fn(tool_calls, owner) -> bool
+    """
+    passes = 0
+    for _ in range(n):
+        owner, pet, scheduler = owner_factory()
+        _, _, tool_calls = run_agent(prompt, owner, scheduler, [])
+        if check_fn(tool_calls, owner):
+            passes += 1
+    return passes / n
+
+
+def assert_confidence(label, score, threshold=CONFIDENCE_THRESHOLD):
+    print(f"\n  [{label}] confidence: {score:.0%} ({int(score * CONFIDENCE_RUNS)}/{CONFIDENCE_RUNS} runs passed)")
+    assert score >= threshold, \
+        f"[{label}] confidence {score:.0%} is below threshold {threshold:.0%}"
+
+
+def test_confidence_add_task_tool():
+    score = score_eval(
+        "Add a daily morning walk for Mochi from 07:00 to 07:30, high priority.",
+        fresh_state,
+        lambda tc, _: "add_task" in tool_names(tc),
+    )
+    assert_confidence("add_task tool called", score)
+
+
+def test_confidence_add_task_state():
+    score = score_eval(
+        "Add a daily morning walk for Mochi from 07:00 to 07:30, high priority.",
+        fresh_state,
+        lambda _, owner: len(owner.pets[0].tasks) == 1,
+    )
+    assert_confidence("add_task state updated", score)
+
+
+def test_confidence_add_task_correct_frequency():
+    score = score_eval(
+        "Add a weekly bath for Mochi from 12:00 to 13:00, low priority.",
+        fresh_state,
+        lambda tc, _: any(
+            c["name"] == "add_task" and c["inputs"].get("frequency") == "weekly"
+            for c in tc
+        ),
+    )
+    assert_confidence("add_task correct frequency", score)
+
+
+def test_confidence_add_task_correct_priority():
+    score = score_eval(
+        "Add a high priority daily morning walk for Mochi from 07:00 to 07:30.",
+        fresh_state,
+        lambda tc, _: any(
+            c["name"] == "add_task" and c["inputs"].get("priority") == 1
+            for c in tc
+        ),
+    )
+    assert_confidence("add_task correct priority", score)
+
+
+def test_confidence_schedule_after_add():
+    score = score_eval(
+        "Add a daily morning walk for Mochi from 07:00 to 07:30, high priority.",
+        fresh_state,
+        lambda tc, _: "generate_schedule" in tool_names(tc),
+    )
+    assert_confidence("generate_schedule follows add_task", score)
+
+
+def test_confidence_conflicts_after_add():
+    score = score_eval(
+        "Add a daily morning walk for Mochi from 07:00 to 07:30, high priority.",
+        fresh_state,
+        lambda tc, _: "detect_conflicts" in tool_names(tc),
+    )
+    assert_confidence("detect_conflicts follows add_task", score)
+
+
+def test_confidence_mark_complete_tool():
+    score = score_eval(
+        "Mark the Morning walk complete for Mochi.",
+        lambda: fresh_state_with_task("Morning walk"),
+        lambda tc, _: "mark_complete" in tool_names(tc),
+    )
+    assert_confidence("mark_complete tool called", score)
+
+
+def test_confidence_mark_complete_state():
+    score = score_eval(
+        "Mark the Morning walk complete for Mochi.",
+        lambda: fresh_state_with_task("Morning walk"),
+        lambda _, owner: owner.pets[0].tasks[0].is_complete,
+    )
+    assert_confidence("mark_complete state updated", score)

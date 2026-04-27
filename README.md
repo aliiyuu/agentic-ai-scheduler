@@ -1,88 +1,184 @@
-# PawPal+ (Module 2 Project)
+# PawPal++: Agentic AI Pet Care Planner
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+## Original Project
 
-## Scenario
+This project extends **PawPal+**, originally built in Module 2. The original app was a rule-based Streamlit scheduler that helped pet owners manage daily care tasks across multiple pets. It was built around four classes — `Task`, `Pet`, `Owner`, and `Scheduler` — and supported sorting by time or priority, recurring task scheduling (daily/weekly), conflict detection across overlapping time windows, and live checkbox-based task completion. The original system was entirely deterministic with no AI or agentic functionality.
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
+---
 
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
+## Title and Summary
 
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+**PawPal++* transforms the original rule-based scheduler into a conversational AI system. Instead of manually filling in forms to add pets and tasks, users can describe what they need in plain English — "Add a daily walk for Mochi at 7am" or "Mark breakfast complete and show me what's left" — and a Claude-powered agent handles the rest, calling the appropriate scheduler functions and reporting back in natural language.
 
-## What you will build
+This matters because scheduling pet care is a constraint-satisfaction problem involving priorities, time windows, recurrence, and conflicts. A conversational agent that reasons about these constraints and takes multi-step actions (add a task → generate a schedule → check for conflicts) is more useful than a form, and it makes the existing scheduling logic accessible without requiring the user to understand the system's structure.
 
-Your final app should:
+---
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+## Architecture Overview
 
-## Demo
+```text
+┌─────────────────────────────────────────┐
+│              app.py (Streamlit UI)      │
+│  - Owner/pet/task forms (manual entry)  │
+│  - Schedule view with checkboxes        │
+│  - AI chat panel (st.chat_input)        │
+└────────────────┬────────────────────────┘
+                 │ calls
+┌────────────────▼────────────────────────┐
+│           agent.py (Agent Loop)         │
+│  - TOOLS: 7 tool definitions (JSON)     │
+│  - dispatch_tool: routes tool → system  │
+│  - run_agent: while-loop until end_turn │
+│  - _build_context: injects live state   │
+└────────────────┬────────────────────────┘
+                 │ mutates
+┌────────────────▼────────────────────────┐
+│       pawpal_system.py (Core Logic)     │
+│  - Task, Pet, Owner dataclasses         │
+│  - Scheduler: sort, conflict, recur     │
+└─────────────────────────────────────────┘
+```
 
-<a href="https://raw.githubusercontent.com/aliiyuu/ai110-module2show-pawpal-starter/main/demo.png" target="_blank"><img src='https://raw.githubusercontent.com/aliiyuu/ai110-module2show-pawpal-starter/main/demo.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+The agent layer sits between the UI and the core logic. On every turn, Claude (Haiku) receives a plain-text snapshot of the current owner state — which pets exist, which tasks are pending or complete, their times and priorities. Claude reads the user's message, selects which tools to call from their JSON schema descriptions, and the `dispatch_tool` function executes those calls against the live `Owner` and `Scheduler` objects held in Streamlit session state.
 
-## Features
+Two separate histories are maintained: `chat_history` (the raw API message list Claude needs for context, including tool_use and tool_result blocks) and `display_history` (clean user/assistant text pairs for rendering in the UI). This keeps internal tool-call messages from appearing as blank bubbles in the chat. The UI re-renders automatically after any state-modifying tool call via `st.rerun()`, keeping the pet/task tables in sync with what the agent did.
 
-- **Sorting by time** — `Scheduler.organize_by_time` sorts pending tasks in ascending `start_time` order so the schedule reads chronologically from morning to night.
-- **Sorting by priority** — `Scheduler.organize_by_priority` sorts by priority value (1 = high first), with `start_time` as a tiebreaker when two tasks share the same priority.
-- **User-selectable sort order** — the owner's `preferences["sort_by"]` setting drives `generate_schedule`, which dispatches to either sort automatically. The preference is set from a dropdown in the UI.
-- **Conflict warnings** — `Scheduler.detect_conflicts` checks every pair of pending tasks across all pets using an interval-overlap test (`a.start < b.end and b.start < a.end`). Any overlapping pair produces a warning displayed via `st.warning` in the app.
-- **Daily recurrence** — marking a `frequency="daily"` task complete via `Scheduler.mark_complete` automatically adds a new copy of that task due the following day, preserving the original description, times, and priority.
-- **Weekly recurrence** — same as daily recurrence but the next task is scheduled 7 days out.
-- **One-off tasks** — tasks with `frequency="as needed"` are marked complete and removed from the schedule without creating a follow-up.
-- **Multi-pet support** — an `Owner` holds multiple `Pet` objects; `get_all_tasks` flattens tasks across all pets and the scheduler operates over the full owner-level task list.
-- **Live schedule with checkboxes** — the Streamlit UI renders each pending task as a checkbox row; ticking a box calls `mark_complete`, refreshes the schedule, and shows updated metrics without a manual page reload.
-- **Summary metrics** — the schedule view shows live counts of total, pending, and completed tasks via `st.metric`.
+---
 
-## Getting started
+## Setup Instructions
 
-### Setup
+### 1. Create a virtual environment pinned to Python 3.13
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python3.13 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+### 3. Set your Anthropic API key
 
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+Create a `.env` file in the project root (already in `.gitignore`):
 
-## Testing PawPal+
-
-### Running the tests
-
-```bash
-source .venv/bin/activate
-python -m pytest tests/test_pawpal.py -v
+```text
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### What the tests cover
+### 4. Run the app
 
-The suite contains 31 tests across six areas:
+```bash
+streamlit run app.py
+```
 
-| Area | What is verified |
-| --- | --- |
-| **Task defaults** | `priority`, `is_complete`, and `due_date` are set correctly on construction |
-| **Pet management** | `add_task` grows the list; `remove_task` removes all matching descriptions including duplicates; removing a non-existent description does not crash |
-| **Owner aggregation** | `get_all_tasks` flattens tasks across multiple pets; works correctly with no pets |
-| **Sorting correctness** | `organize_by_time` returns tasks in chronological order; `organize_by_priority` puts high-priority tasks first and breaks ties by start time; `generate_schedule` dispatches to the correct sort based on owner preferences |
-| **Recurrence logic** | Completing a `daily` task adds a new task due the next day; completing a `weekly` task adds one due 7 days later; `as needed` tasks produce no new task; the new task preserves all original fields (description, times, priority, frequency) |
-| **Conflict detection** | Overlapping time windows produce a warning; adjacent tasks (end == start) do not; completed tasks are excluded from conflict checks; conflicts are detected across different pets |
+### 5. Run the test suites
 
-### Confidence level
+```bash
+# Core logic tests (no API key needed)
+python -m pytest tests/test_pawpal.py -v
 
-★★★★☆ (4/5)
+# Agent reliability evals (requires API key)
+python -m pytest tests/test_agent_evals.py -v
 
-The core scheduling behaviors — sorting, recurrence, and conflict detection — are all verified and passing. Confidence is high for the logic layer. One star is held back because the Streamlit UI (`app.py`) has no automated tests, so end-to-end user interactions are untested.
+# Confidence scoring with visible scores
+python -m pytest tests/test_agent_evals.py -v -s -k confidence
+```
+
+---
+
+## Sample Interactions
+
+**1. Adding a pet and task in one message**
+
+> **User:** Add a dog named Mochi and give her a daily morning walk from 7:00 to 7:30, high priority.
+
+> **PawPal+:** I've added Mochi the dog and scheduled her Morning walk daily from 07:00–07:30 (high priority). Here's her current schedule:
+> - [Mochi] Morning walk 07:00–07:30 | priority 1 | daily
+>
+> No conflicts detected.
+
+*Tools called: `add_pet` → `add_task` → `generate_schedule` → `detect_conflicts`*
+
+---
+
+**2. Marking a task complete and seeing the updated plan**
+
+> **User:** Mochi finished her walk. Mark it complete and show me what's left today.
+
+> **PawPal+:** Marked "Morning walk" complete for Mochi. Since it's a daily task, I've automatically scheduled the next one for tomorrow. Here's what's still pending today:
+> - [Mochi] Breakfast 08:00–08:30 | priority 1 | daily
+>
+> No conflicts.
+
+*Tools called: `mark_complete` → `generate_schedule` → `detect_conflicts`*
+
+---
+
+**3. Detecting scheduling conflicts**
+
+> **User:** Do any of Mochi's tasks overlap?
+
+> **PawPal+:** I checked all pending tasks. There is one conflict:
+> CONFLICT: Mochi/"Bath" [12:00–13:00] overlaps with Mochi/"Vet appointment" [12:30–13:30].
+> You may want to reschedule one of these.
+
+*Tools called: `detect_conflicts`*
+
+---
+
+## Design Decisions
+
+**Agentic workflow over RAG**
+RAG requires a knowledge base and suits Q&A use cases. PawPal+'s core problem is scheduling under constraints, which is a reasoning and action problem. An agent that wraps the existing `pawpal_system.py` functions as tools is a more direct fit, and it means the AI layer extends the original system without replacing or duplicating it. 
+
+**Four classes kept from original design**
+The original Module 2 reflection documents a deliberate simplification from a six-class design (which included `SchedulingContext`, `ScoredTask`, `ScheduledTask`, `DailyPlan`, and two enums) down to four (`Task`, `Pet`, `Owner`, `Scheduler`). Those extra classes are useful for time-window scoring and printable daily plans, but added unnecessary complexity for a minimal working scheduler. The agentic layer builds on the four-class design without re-introducing that complexity.
+
+**Tool descriptions drive routing**
+Rather than writing routing logic, Claude infers which tools to call from their natural-language descriptions in the JSON schema. This required careful description writing (distinguishing `generate_schedule` (returns sorted pending tasks) from `get_all_tasks` (returns everything including completed tasks)) but avoids brittle if/else dispatch based on user phrasing.
+
+**System prompt for chaining**
+The default model behavior was to call one tool and stop. Explicit rules in the system prompt ("after adding a task, always call `generate_schedule` then `detect_conflicts`") force the multi-step chains the app needs. Prompt engineering here was more effective and less fragile than structural changes to the loop.
+
+**Separate display and API history**
+The raw Claude API `messages` list contains `tool_use` and `tool_result` blocks that are meaningless to display. Rendering from it produced blank bubbles and ghost messages. A separate `display_history` of only user/assistant text pairs fixed this cleanly without changing the agent logic.
+
+**Quadratic conflict detection preserved**
+The original `detect_conflicts` uses an O(n²) pairwise check by design — it catches non-adjacent overlaps (e.g., a task spanning two others) that a sweep-line approach would miss for small n. This was documented in the Module 2 reflection as a deliberate tradeoff. The agent calls this function unchanged, but the complexity may be improved in later iterations of the app.
+
+---
+
+## Testing Summary
+
+**Core logic tests (`test_pawpal.py`) — 31 tests, all passing**
+
+Covers task defaults, pet management, owner aggregation, sorting correctness, recurrence logic, and conflict detection. These test the pure Python layer with no API calls and remained fully stable throughout the AI integration because `pawpal_system.py` was never modified.
+
+**Agent reliability evals (`test_agent_evals.py`) — 20+ tests**
+
+Tests the AI layer by asserting on tool calls and final state rather than response text (which varies between runs). Structured in three tiers:
+
+| Tier | Approach | Failure condition |
+|---|---|---|
+| Single-run correctness | Assert tool called / state updated once | Any failure |
+| Consistency checks | Run 3× — require 3/3 | Any single failure |
+| Confidence scoring | Run 5× — report pass rate (0.0–1.0) | Score below 80% |
+
+**What worked:** Asserting on `tool_calls` (which tool was called, with what inputs) and on Python object state after the run proved far more reliable than matching response text. State assertions caught cases where the right tool was called but with wrong parameters.
+
+**What didn't:** The agent occasionally skips `detect_conflicts` after `add_task` on ambiguous short prompts. Tightening the system prompt rules improved consistency but didn't reach 100% — reflected in the confidence threshold being 80% rather than requiring a perfect score. The UI (`app.py`) still has no automated tests; end-to-end interactions remain manually verified only.
+
+**What I learned:** Testing a probabilistic system requires a different mental model than testing deterministic code. Binary pass/fail tests misrepresent LLM reliability — a test that passes 4/5 times isn't "passing." Confidence scoring is more honest and more actionable.
+
+---
+
+## Reflection
+
+Building the agentic layer reinforced the Module 2 takeaway that software development is iterative even with AI. In Module 2, the challenge was designing the right abstractions. Here, the challenge was designing the right *interface* between an LLM and those abstractions: tool schemas, system prompt rules, context injection, and state serialization all required iteration that had nothing to do with the model's raw capability.
+
+The most surprising thing was how much behavior could be controlled through the system prompt rather than code. The multi-step chaining problem (agent stops after one tool call) was solved entirely in the prompt, not the loop. This suggests that prompt engineering is a form of system design. Decisions made in natural language that shape control flow as surely as code does.
+
+I also came away with a clearer sense of what "agentic" actually means. PawPal+ now acts on multiple steps without the user driving each one, but it only acts when prompted. A genuinely autonomous version would monitor the schedule and surface overdue tasks unprompted. This would require persistent state across sessions, background execution, and a more sophisticated memory model.
