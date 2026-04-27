@@ -1,5 +1,6 @@
 import streamlit as st
 from pawpal_system import Task, Pet, Owner, Scheduler
+from agent import run_agent
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -13,6 +14,8 @@ if "owner" not in st.session_state:
     st.session_state.owner = Owner(name="Jordan")
 if "scheduler" not in st.session_state:
     st.session_state.scheduler = Scheduler()
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 PRIORITY_LABEL = {1: "⬆ High", 2: "➡ Medium", 3: "⬇ Low"}
 
@@ -182,3 +185,34 @@ if "schedule" in st.session_state:
             col4.write(pet.name)
             col5.write(f"{task.start_time}–{task.end_time}")
             col6.write(task.frequency)
+
+st.divider()
+
+# ---------------------------------------------------------------------------
+# AI Assistant
+# ---------------------------------------------------------------------------
+st.subheader("AI Assistant")
+st.caption("Ask PawPal+ to add pets, manage tasks, generate a schedule, or plan your day.")
+
+for msg in st.session_state.chat_history:
+    if msg["role"] in ("user", "assistant"):
+        with st.chat_message(msg["role"]):
+            if isinstance(msg["content"], str):
+                st.write(msg["content"])
+            elif isinstance(msg["content"], list):
+                for block in msg["content"]:
+                    if hasattr(block, "text"):
+                        st.write(block.text)
+
+if prompt := st.chat_input("Ask PawPal+ anything..."):
+    with st.chat_message("user"):
+        st.write(prompt)
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            response, st.session_state.chat_history = run_agent(
+                prompt,
+                st.session_state.owner,
+                st.session_state.scheduler,
+                st.session_state.chat_history,
+            )
+        st.write(response)
