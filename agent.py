@@ -83,8 +83,13 @@ TOOLS = [
 
 SYSTEM_PROMPT = """You are PawPal+, an AI assistant that helps pet owners plan and manage daily care tasks.
 You have tools to add pets, add/remove tasks, generate schedules, detect conflicts, and mark tasks complete.
-When the owner asks for help planning their day or managing tasks, use the tools to take action and explain what you did.
-Always confirm the outcome after using a tool."""
+
+Always follow these rules:
+- After adding or removing any task, always call generate_schedule and then detect_conflicts before responding to the user.
+- After marking a task complete, always call generate_schedule to show the updated schedule.
+- When asked to plan the day or generate a schedule, call detect_conflicts immediately after generate_schedule.
+- Never ask the user for information you can already see in the current owner state.
+- Always take action with tools first, then explain what you did in your final response."""
 
 
 def _find_pet(owner: Owner, name: str) -> Pet | None:
@@ -177,12 +182,13 @@ def _build_context(owner: Owner) -> str:
     return "\n".join(lines)
 
 
-def run_agent(user_message: str, owner: Owner, scheduler: Scheduler, history: list) -> tuple[str, list]:
-    """Run one turn of the agent loop. Returns (response_text, updated_history)."""
+def run_agent(user_message: str, owner: Owner, scheduler: Scheduler, history: list) -> tuple[str, list, list[dict]]:
+    """Run one turn of the agent loop. Returns (response_text, updated_history, tool_calls)."""
     client = anthropic.Anthropic()
     context = _build_context(owner)
     system = f"{SYSTEM_PROMPT}\n\nCurrent owner state:\n{context}"
     messages = history + [{"role": "user", "content": user_message}]
+    tool_calls = []
 
     while True:
         response = client.messages.create(
@@ -197,13 +203,14 @@ def run_agent(user_message: str, owner: Owner, scheduler: Scheduler, history: li
 
         if response.stop_reason == "end_turn":
             text = next((b.text for b in response.content if hasattr(b, "text")), "")
-            return text, messages
+            return text, messages, tool_calls
 
         # handle tool calls
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
                 result = dispatch_tool(block.name, block.input, owner, scheduler)
+                tool_calls.append({"name": block.name, "inputs": block.input, "result": result})
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,

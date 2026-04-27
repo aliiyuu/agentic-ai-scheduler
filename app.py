@@ -209,10 +209,18 @@ if prompt := st.chat_input("Ask PawPal+ anything..."):
         st.write(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            response, st.session_state.chat_history = run_agent(
+            response, st.session_state.chat_history, tool_calls = run_agent(
                 prompt,
                 st.session_state.owner,
                 st.session_state.scheduler,
                 st.session_state.chat_history,
             )
+        if tool_calls:
+            with st.expander(f"🔧 Tools called ({len(tool_calls)})"):
+                for call in tool_calls:
+                    st.markdown(f"**`{call['name']}`**")
+                    if call["inputs"]:
+                        st.json(call["inputs"])
+                    st.caption(f"Result: {call['result']}")
+                    st.divider()
         st.write(response)
