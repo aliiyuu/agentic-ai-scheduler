@@ -220,3 +220,9 @@ Building the agentic layer reinforced the Module 2 takeaway that software develo
 The most surprising thing was how much behavior could be controlled through the system prompt rather than code. The multi-step chaining problem (agent stops after one tool call) was solved entirely in the prompt, not the loop. This suggests that prompt engineering is a form of system design. Decisions made in natural language that shape control flow as surely as code does.
 
 I also came away with a clearer sense of what "agentic" actually means. PawPal+ now acts on multiple steps without the user driving each one, but it only acts when prompted. A genuinely autonomous version would monitor the schedule and surface overdue tasks unprompted. This would require persistent state across sessions, background execution, and a more sophisticated memory model.
+
+---
+
+## Demo
+
+[Watch the demo on Google Drive](https://drive.google.com/file/d/1ZQBSYzRgiTttDX9lKKjVr_7yDJLMu0-I/view)
