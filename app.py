@@ -196,17 +196,26 @@ st.divider()
 st.subheader("AI Assistant")
 st.caption("Ask PawPal+ to add pets, manage tasks, generate a schedule, or plan your day.")
 
+def _render_tool_calls(tool_calls):
+    if not tool_calls:
+        return
+    tool_count = sum(1 for c in tool_calls if c.get("type") == "tool")
+    with st.expander(f"🔧 Reasoning trace ({tool_count} tool calls)"):
+        for entry in tool_calls:
+            if entry.get("type") == "thought":
+                st.markdown(f"💭 *{entry['text']}*")
+            else:
+                st.markdown(f"**`{entry['name']}`**")
+                if entry["inputs"]:
+                    st.json(entry["inputs"])
+                st.caption(f"Result: {entry['result']}")
+            st.divider()
+
+
 for msg in st.session_state.display_history:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
-        if msg.get("tool_calls"):
-            with st.expander(f"🔧 Tools called ({len(msg['tool_calls'])})"):
-                for call in msg["tool_calls"]:
-                    st.markdown(f"**`{call['name']}`**")
-                    if call["inputs"]:
-                        st.json(call["inputs"])
-                    st.caption(f"Result: {call['result']}")
-                    st.divider()
+        _render_tool_calls(msg.get("tool_calls", []))
 
 MODIFYING_TOOLS = {"add_pet", "add_task", "remove_task", "mark_complete"}
 
@@ -227,15 +236,11 @@ if prompt := st.chat_input("Ask PawPal+ anything..."):
             "content": response,
             "tool_calls": tool_calls,
         })
-        if tool_calls:
-            with st.expander(f"🔧 Tools called ({len(tool_calls)})"):
-                for call in tool_calls:
-                    st.markdown(f"**`{call['name']}`**")
-                    if call["inputs"]:
-                        st.json(call["inputs"])
-                    st.caption(f"Result: {call['result']}")
-                    st.divider()
+        _render_tool_calls(tool_calls)
         st.write(response)
 
-    if any(call["name"] in MODIFYING_TOOLS for call in tool_calls):
+    agent_tool_names = {c["name"] for c in tool_calls if c.get("type") == "tool"}
+    if "generate_schedule" in agent_tool_names:
+        st.session_state.schedule = st.session_state.scheduler.generate_schedule(st.session_state.owner)
+    if agent_tool_names & MODIFYING_TOOLS:
         st.rerun()

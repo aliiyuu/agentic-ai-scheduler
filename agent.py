@@ -84,12 +84,18 @@ TOOLS = [
 SYSTEM_PROMPT = """You are PawPal+, an AI assistant that helps pet owners plan and manage daily care tasks.
 You have tools to add pets, add/remove tasks, generate schedules, detect conflicts, and mark tasks complete.
 
+Use a Thought → Action → Observation reasoning cycle:
+- Thought: before every tool call, write one sentence starting with "Thought:" that explains what you are about to do and why.
+- Action: call the tool.
+- Observation: after receiving the result, write one sentence starting with "Observation:" summarising what you learned.
+- Repeat until you have enough information to respond to the user.
+
 Always follow these rules:
 - After adding or removing any task, always call generate_schedule and then detect_conflicts before responding to the user.
 - After marking a task complete, always call generate_schedule to show the updated schedule.
 - When asked to plan the day or generate a schedule, call detect_conflicts immediately after generate_schedule.
 - Never ask the user for information you can already see in the current owner state.
-- Always take action with tools first, then explain what you did in your final response."""
+- Always complete your reasoning cycle before writing your final response to the user."""
 
 
 def _find_pet(owner: Owner, name: str) -> Pet | None:
@@ -205,12 +211,14 @@ def run_agent(user_message: str, owner: Owner, scheduler: Scheduler, history: li
             text = next((b.text for b in response.content if hasattr(b, "text")), "")
             return text, messages, tool_calls
 
-        # handle tool calls
+        # capture reasoning text (Thought/Observation) then execute tool calls
         tool_results = []
         for block in response.content:
-            if block.type == "tool_use":
+            if hasattr(block, "text") and block.text.strip():
+                tool_calls.append({"type": "thought", "text": block.text.strip()})
+            elif block.type == "tool_use":
                 result = dispatch_tool(block.name, block.input, owner, scheduler)
-                tool_calls.append({"name": block.name, "inputs": block.input, "result": result})
+                tool_calls.append({"type": "tool", "name": block.name, "inputs": block.input, "result": result})
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,

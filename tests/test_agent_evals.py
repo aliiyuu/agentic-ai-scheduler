@@ -40,7 +40,7 @@ def fresh_state_with_task(description="Morning walk", start="07:00", end="07:30"
 
 
 def tool_names(tool_calls):
-    return [c["name"] for c in tool_calls]
+    return [c["name"] for c in tool_calls if c.get("type") == "tool"]
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ def test_add_task_correct_pet():
     add_calls = [c for c in run_agent(
         "Add a task called Evening walk for Mochi, daily from 18:00 to 18:30, medium priority.",
         owner, scheduler, [],
-    )[2] if c["name"] == "add_task"]
+    )[2] if c.get("type") == "tool" and c["name"] == "add_task"]
     assert all(c["inputs"]["pet_name"].lower() == "mochi" for c in add_calls)
 
 
@@ -84,7 +84,7 @@ def test_add_task_correct_frequency():
         "Add a weekly bath task for Mochi from 12:00 to 13:00, low priority.",
         owner, scheduler, [],
     )
-    add_call = next((c for c in tool_calls if c["name"] == "add_task"), None)
+    add_call = next((c for c in tool_calls if c.get("type") == "tool" and c["name"] == "add_task"), None)
     assert add_call is not None
     assert add_call["inputs"]["frequency"] == "weekly", \
         f"Expected weekly, got: {add_call['inputs']['frequency']}"
@@ -134,7 +134,7 @@ def test_add_pet_correct_species():
     owner = Owner(name="Jordan")
     scheduler = Scheduler()
     _, _, tool_calls = run_agent("Add a bird named Kiwi.", owner, scheduler, [])
-    add_call = next((c for c in tool_calls if c["name"] == "add_pet"), None)
+    add_call = next((c for c in tool_calls if c.get("type") == "tool" and c["name"] == "add_pet"), None)
     assert add_call is not None
     assert add_call["inputs"]["species"] == "bird", \
         f"Expected bird, got: {add_call['inputs']['species']}"
@@ -294,7 +294,7 @@ def test_confidence_add_task_correct_frequency():
         fresh_state,
         lambda tc, _: any(
             c["name"] == "add_task" and c["inputs"].get("frequency") == "weekly"
-            for c in tc
+            for c in tc if c.get("type") == "tool"
         ),
     )
     assert_confidence("add_task correct frequency", score)
@@ -306,7 +306,7 @@ def test_confidence_add_task_correct_priority():
         fresh_state,
         lambda tc, _: any(
             c["name"] == "add_task" and c["inputs"].get("priority") == 1
-            for c in tc
+            for c in tc if c.get("type") == "tool"
         ),
     )
     assert_confidence("add_task correct priority", score)

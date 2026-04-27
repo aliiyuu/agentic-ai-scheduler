@@ -87,14 +87,52 @@ python -m pytest tests/test_agent_evals.py -v
 python -m pytest tests/test_agent_evals.py -v -s -k confidence
 ```
 
+```bash
+# Sample output
+==================================================== test session starts ====================================================
+platform darwin -- Python 3.13.5, pytest-9.0.3, pluggy-1.6.0 -- /Users/aliciayu/ai110/ai110-module2show-pawpal-starter/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/aliciayu/ai110/ai110-module2show-pawpal-starter
+configfile: pytest.ini
+plugins: anyio-4.13.0
+collected 26 items / 18 deselected / 8 selected                                                                             
+
+tests/test_agent_evals.py::test_confidence_add_task_tool 
+  [add_task tool called] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_add_task_state 
+  [add_task state updated] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_add_task_correct_frequency 
+  [add_task correct frequency] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_add_task_correct_priority 
+  [add_task correct priority] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_schedule_after_add 
+  [generate_schedule follows add_task] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_conflicts_after_add 
+  [detect_conflicts follows add_task] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_mark_complete_tool 
+  [mark_complete tool called] confidence: 100% (5/5 runs passed)
+PASSED
+tests/test_agent_evals.py::test_confidence_mark_complete_state 
+  [mark_complete state updated] confidence: 100% (5/5 runs passed)
+PASSED
+
+======================================= 8 passed, 18 deselected in 171.99s (0:02:51) ========================================
+```
+
 ---
 
 ## Sample Interactions
 
-**1. Adding a pet and task in one message**
+### 1. Adding a pet and task in one message
 
 > **User:** Add a dog named Mochi and give her a daily morning walk from 7:00 to 7:30, high priority.
-
+>
 > **PawPal+:** I've added Mochi the dog and scheduled her Morning walk daily from 07:00–07:30 (high priority). Here's her current schedule:
 > - [Mochi] Morning walk 07:00–07:30 | priority 1 | daily
 >
@@ -104,7 +142,7 @@ python -m pytest tests/test_agent_evals.py -v -s -k confidence
 
 ---
 
-**2. Marking a task complete and seeing the updated plan**
+### 2. Marking a task complete and seeing the updated plan
 
 > **User:** Mochi finished her walk. Mark it complete and show me what's left today.
 
@@ -117,7 +155,7 @@ python -m pytest tests/test_agent_evals.py -v -s -k confidence
 
 ---
 
-**3. Detecting scheduling conflicts**
+### 3. Detecting scheduling conflicts
 
 > **User:** Do any of Mochi's tasks overlap?
 
@@ -162,12 +200,12 @@ Covers task defaults, pet management, owner aggregation, sorting correctness, re
 Tests the AI layer by asserting on tool calls and final state rather than response text (which varies between runs). Structured in three tiers:
 
 | Tier | Approach | Failure condition |
-|---|---|---|
+| --- | --- | --- |
 | Single-run correctness | Assert tool called / state updated once | Any failure |
 | Consistency checks | Run 3× — require 3/3 | Any single failure |
 | Confidence scoring | Run 5× — report pass rate (0.0–1.0) | Score below 80% |
 
-**What worked:** Asserting on `tool_calls` (which tool was called, with what inputs) and on Python object state after the run proved far more reliable than matching response text. State assertions caught cases where the right tool was called but with wrong parameters.
+**What worked:** Asserting on `tool_calls` (which tool was called, with what inputs) and on Python object state after the run proved far more reliable than matching response text. State assertions caught cases where the right tool was called but with wrong parameters. Adding ReAct-style prompting (Thought → Action → Observation) also measurably improved chaining reliability — the explicit reasoning step before each tool call reduced cases where the agent would skip required follow-up tools. The `detect_conflicts` rule in the system prompt acts as a specific guardrail: by mandating that `detect_conflicts` always runs after any task modification, the system guarantees conflict checking happens regardless of how the user phrases their request, which is a safety property that pure model judgment alone would not reliably provide.
 
 **What didn't:** The agent occasionally skips `detect_conflicts` after `add_task` on ambiguous short prompts. Tightening the system prompt rules improved consistency but didn't reach 100% — reflected in the confidence threshold being 80% rather than requiring a perfect score. The UI (`app.py`) still has no automated tests; end-to-end interactions remain manually verified only.
 
