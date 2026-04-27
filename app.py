@@ -208,6 +208,8 @@ for msg in st.session_state.display_history:
                     st.caption(f"Result: {call['result']}")
                     st.divider()
 
+MODIFYING_TOOLS = {"add_pet", "add_task", "remove_task", "mark_complete"}
+
 if prompt := st.chat_input("Ask PawPal+ anything..."):
     st.session_state.display_history.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -234,3 +236,6 @@ if prompt := st.chat_input("Ask PawPal+ anything..."):
                     st.caption(f"Result: {call['result']}")
                     st.divider()
         st.write(response)
+
+    if any(call["name"] in MODIFYING_TOOLS for call in tool_calls):
+        st.rerun()
