@@ -15,7 +15,9 @@ if "owner" not in st.session_state:
 if "scheduler" not in st.session_state:
     st.session_state.scheduler = Scheduler()
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+    st.session_state.chat_history = []  # raw API messages passed to run_agent
+if "display_history" not in st.session_state:
+    st.session_state.display_history = []  # clean user/assistant pairs for rendering
 
 PRIORITY_LABEL = {1: "⬆ High", 2: "➡ Medium", 3: "⬇ Low"}
 
@@ -194,17 +196,20 @@ st.divider()
 st.subheader("AI Assistant")
 st.caption("Ask PawPal+ to add pets, manage tasks, generate a schedule, or plan your day.")
 
-for msg in st.session_state.chat_history:
-    if msg["role"] in ("user", "assistant"):
-        with st.chat_message(msg["role"]):
-            if isinstance(msg["content"], str):
-                st.write(msg["content"])
-            elif isinstance(msg["content"], list):
-                for block in msg["content"]:
-                    if hasattr(block, "text"):
-                        st.write(block.text)
+for msg in st.session_state.display_history:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+        if msg.get("tool_calls"):
+            with st.expander(f"🔧 Tools called ({len(msg['tool_calls'])})"):
+                for call in msg["tool_calls"]:
+                    st.markdown(f"**`{call['name']}`**")
+                    if call["inputs"]:
+                        st.json(call["inputs"])
+                    st.caption(f"Result: {call['result']}")
+                    st.divider()
 
 if prompt := st.chat_input("Ask PawPal+ anything..."):
+    st.session_state.display_history.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
     with st.chat_message("assistant"):
@@ -215,6 +220,11 @@ if prompt := st.chat_input("Ask PawPal+ anything..."):
                 st.session_state.scheduler,
                 st.session_state.chat_history,
             )
+        st.session_state.display_history.append({
+            "role": "assistant",
+            "content": response,
+            "tool_calls": tool_calls,
+        })
         if tool_calls:
             with st.expander(f"🔧 Tools called ({len(tool_calls)})"):
                 for call in tool_calls:
